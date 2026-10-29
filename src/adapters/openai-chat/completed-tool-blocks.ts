@@ -1,4 +1,4 @@
-import type { AdapterEvent, OcxProviderConfig } from "../../types";
+import type { AdapterEvent, OcxProviderConfig, OcxProviderOpaqueToolCallMetadata } from "../../types";
 import { modelInList } from "../../types";
 import type { FreeformToolIdentity } from "./serialized-tool-call-content";
 
@@ -11,6 +11,7 @@ export interface PendingChatToolCall {
   name: string;
   args: string;
   argsBytes: number;
+  providerMetadata?: OcxProviderOpaqueToolCallMetadata;
   sawArgumentsString: boolean;
   blockCompleted?: boolean;
   emittedEarly?: boolean;
@@ -58,7 +59,7 @@ export function completedToolPrefix(
     try { args = JSON.parse(call.args); } catch { break; }
     if (!args || typeof args !== "object" || Array.isArray(args) || Object.hasOwn(args, "input")) break;
     call.emittedEarly = true;
-    events.push({ type: "tool_call_start", id: call.id, name: restoreName(call.name) });
+    events.push({ type: "tool_call_start", id: call.id, name: restoreName(call.name), ...(call.providerMetadata ? { providerMetadata: call.providerMetadata } : {}) });
     events.push({ type: "tool_call_delta", arguments: call.args }, { type: "tool_call_end" });
   }
   return events;

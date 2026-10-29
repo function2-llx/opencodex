@@ -13,6 +13,8 @@ property, and no freeform identity. Inline-think models stay buffered. The conte
 `src/adapters/openai-chat/serialized-tool-call-content.ts` uses its `hasHeldEvents()` gate to prevent tools from overtaking held text or reasoning. Calls remain in
 the full reconciliation batch until terminal cleanup, preserving ambiguity rules and byte budgets;
 already released calls are not emitted again. Errors preserve those closed calls and emit no success.
+Early events preserve the call's opaque provider metadata, including a signature arriving on
+the completion marker; the same conflict and byte-budget checks run before early dispatch.
 Cancellation cannot retract a completed call the client already received. Request bodies, aliases,
 usage collection, custom-tool reconciliation and providers without bilateral negotiation retain
 their existing behavior. Coverage: `tests/adapters/openai/openai-chat-parallel-stream.test.ts`.

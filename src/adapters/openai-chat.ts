@@ -2,7 +2,8 @@ import { withRequiredChatToolResult } from "./openai-chat/required-tool-result";
 import { hasShrinkableOpenAIChatImages, normalizeOpenAIChatImages } from "./openai-chat-images";
 import { protectGlmSummaryBudget, resolveMaxTokens } from "./openai-chat/summary-budget";
 import { chatParallelToolCallsWireValue } from "./openai-chat/parallel-tool-calls";
-import { applyExplicitChatReasoningWirePolicy, declaresIndependentChatReasoningEffort } from "./openai-chat/reasoning-wire";
+import { applyExplicitChatReasoningWirePolicy, declaresIndependentChatReasoningEffort, thinkingBudgetForEffort } from "./openai-chat/reasoning-wire";
+import { chatToolCallMetadata, retainChatToolCallMetadata } from "./openai-chat/tool-call-metadata";
 import type { AdapterRequest, IncomingMeta, ProviderAdapter } from "./base";
 import { modelInList, type AdapterEvent, type OcxParsedRequest, type OcxProviderConfig, type OcxUsage } from "../types";
 import { mapReasoningEffort } from "../reasoning-effort";
@@ -55,20 +56,6 @@ export { stripBracketedModelSuffix } from "./openai-chat/wire";
 export { buildOpenAIChatPassthroughRequest } from "./openai-chat/passthrough";
 export { formatOpenAIChatErrorBody } from "./openai-chat/errors";
 
-function thinkingBudgetForEffort(parsed: OcxParsedRequest, reasoningEffort: string, maxOutputTokens?: number): number | undefined {
-  if (parsed.options.reasoning === "minimal") return 0;
-  const maxBudget = maxOutputTokens ?? 32768;
-  const fractions: Record<string, number> = {
-    low: 0.20,
-    medium: 0.50,
-    high: 0.75,
-    xhigh: 0.90,
-    max: 1.0,
-  };
-  const fraction = fractions[reasoningEffort];
-  return fraction === undefined ? undefined : Math.max(1, Math.floor(maxBudget * fraction));
-}
-
 function canSerializeOpenAIChatServiceTier(
   provider: OcxProviderConfig,
   modelId: string,
@@ -91,6 +78,7 @@ function canSerializeOpenAIChatServiceTier(
 
 export function createOpenAIChatAdapter(provider: OcxProviderConfig): ProviderAdapter {
   let lastRequestedModelId: string | undefined;
+  let lastWireModelId: string | undefined;
   let freeformTools = new Map<string, FreeformToolIdentity>();
   return withRequiredChatToolResult(withOpenAIChatToolNames(toolNames => ({
     name: "openai-chat",
@@ -99,6 +87,7 @@ export function createOpenAIChatAdapter(provider: OcxProviderConfig): ProviderAd
 
     buildRequest(parsed: OcxParsedRequest, incoming?: IncomingMeta) {
       lastRequestedModelId = parsed.modelId;
+      lastWireModelId = parsed._wireModelOverride ?? parsed.modelId;
       const completedToolBlocks = incoming?.completedToolBlocks === true;
       const { url, headers, hasCredential } = openAIChatTransport(provider);
       if (!completedToolBlocks) {
@@ -336,7 +325,7 @@ export function createOpenAIChatAdapter(provider: OcxProviderConfig): ProviderAd
         for (const call of calls) {
           if (call.emittedEarly) continue;
           if (!call.id) call.id = `call_${++toolCallSeq}`;
-          yield { type: "tool_call_start", id: call.id, name: toolNames.restore(call.name) };
+          yield { type: "tool_call_start", id: call.id, name: toolNames.restore(call.name), ...(call.providerMetadata ? { providerMetadata: call.providerMetadata } : {}) };
           if (call.args.length > 0) yield { type: "tool_call_delta", arguments: call.args };
           yield { type: "tool_call_end" };
         }
@@ -512,7 +501,6 @@ export function createOpenAIChatAdapter(provider: OcxProviderConfig): ProviderAd
                 ? observeCompletedToolBlock(call, rawToolCall.x_opencodex_completed, indexKey, idDelta, rawFunction !== undefined)
                 : "ordinary";
               if (completion === "invalid") return yield* terminateWithError({ type: "error", message: "invalid negotiated tool completion sequence", ...(pendingUsage !== undefined ? { usage: pendingUsage } : {}) });
-              if (completion === "completed") continue;
               if (!call) {
                 call = {
                   key: key ?? `seq:${pendingToolCalls.length}`,
@@ -529,6 +517,10 @@ export function createOpenAIChatAdapter(provider: OcxProviderConfig): ProviderAd
               // alias without changing the key that owns its argument budget. Only the first
               // observed index binds: a repeated ID on a different index must not alias both.
               if (indexKey !== undefined && call.indexKey === undefined) call.indexKey = indexKey;
+              if (!retainChatToolCallMetadata(call, rawToolCall, lastWireModelId, budget)) {
+                return yield* terminateWithError({ type: "error", message: "upstream tool call contained conflicting thought signatures" });
+              }
+              if (completion === "completed") continue;
 
               // Tolerance is per FIELD, keyed on that field's own provenance. A canonical name
               // says nothing about whether `arguments` was ever sent as a string, so it cannot
@@ -800,7 +792,8 @@ export function createOpenAIChatAdapter(provider: OcxProviderConfig): ProviderAd
             }
             const delta: Extract<AdapterEvent, { type: "tool_call_delta" }> = { type: "tool_call_delta", arguments: args };
             structuredCalls.push({ wireName: name, restoredName: toolNames.restore(name), argumentsText: args, freeformTool: freeformTools.get(name), delta });
-            events.push({ type: "tool_call_start", id, name: toolNames.restore(name) }, delta, { type: "tool_call_end" });
+            const providerMetadata = chatToolCallMetadata(rawToolCall, lastWireModelId);
+            events.push({ type: "tool_call_start", id, name: toolNames.restore(name), ...(providerMetadata ? { providerMetadata } : {}) }, delta, { type: "tool_call_end" });
           }
         }
         const references = reconcileStructuredToolCalls(structuredCalls, answerText, /(?:^|[/-])mimo-v2(?:\.|$)/i.test(lastRequestedModelId ?? ""));

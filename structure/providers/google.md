@@ -131,6 +131,10 @@ remain provider-native and are serialized as before.
 
 ## Google tool-call thought-signature replay
 
+Gemini served through Chat Completions uses the shared call-id replay store and the
+[Chat signature projection](chat-compat.md#gemini-tool-call-signatures-on-chat), rather than
+the native Google adapter's argument-matching fallback described below.
+
 Gemini may attach an opaque `thoughtSignature` to a `functionCall` and requires that exact value on
 the matching model turn when its tool result is submitted. Antigravity and Vertex share the existing
 bounded TTL/LRU replay store, keyed by compiled function-call name plus canonical arguments. Vertex

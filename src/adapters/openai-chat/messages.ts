@@ -8,6 +8,7 @@ import { EMPTY_TOOL_OUTPUT_ANNOTATION, isWhitespaceOnlyTextPartArray } from "../
 import { identifyRoutedModel } from "../identity";
 import { buildNonOpenAIToolCatalogNudgeForTools, shouldInjectNonOpenAIToolCatalogNudge } from "../tool-catalog-nudge";
 import { peekReasoningForCall } from "../../responses/reasoning-replay-cache";
+import { chatToolCallExtraContent } from "./tool-call-metadata";
 import { chatReasoningReplayPolicy, isReflectionThinkingModel } from "./reasoning-replay";
 import type { ClaudeThinkingProjection } from "../../lib/claude-request-projection";
 import { inlineDocumentDataUrl } from "../../responses/inline-document";
@@ -355,6 +356,7 @@ export function messagesToChatFormat(parsed: OcxParsedRequest, provider: OcxProv
             id,
             type: "function",
             function: { name: namespacedToolName(tc.namespace, tc.name), arguments: JSON.stringify(tc.arguments) },
+            ...(chatToolCallExtraContent(tc, parsed) ?? {}),
           }));
           if (!chatMsg.content) chatMsg.content = emptyAssistantContent(provider);
         }

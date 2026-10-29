@@ -1,7 +1,7 @@
 import { resolveThinkingEnabled } from "../../clients/reasoning-controls";
 import { declaredModelCapabilities, resolveReasoningCapabilities } from "../../providers/reasoning-capabilities";
 import { registryEntryForProviderDestination } from "../../providers/registry";
-import { modelInList, type OcxProviderConfig } from "../../types";
+import { modelInList, type OcxParsedRequest, type OcxProviderConfig } from "../../types";
 import type { AdapterRequest } from "../base";
 import { declaresThinkingToggleWire, reasoningControlsAreUnsupported } from "../reasoning-controls";
 import { isNativeOpenAIChatTarget } from "./wire";
@@ -9,6 +9,20 @@ import { isNativeOpenAIChatTarget } from "./wire";
 export type ExplicitChatReasoningWireResult =
   | { handled: false }
   | { handled: true; reasoningLog?: AdapterRequest["reasoningLog"] };
+
+export function thinkingBudgetForEffort(parsed: OcxParsedRequest, reasoningEffort: string, maxOutputTokens?: number): number | undefined {
+  if (parsed.options.reasoning === "minimal") return 0;
+  const maxBudget = maxOutputTokens ?? 32768;
+  const fractions: Record<string, number> = {
+    low: 0.20,
+    medium: 0.50,
+    high: 0.75,
+    xhigh: 0.90,
+    max: 1.0,
+  };
+  const fraction = fractions[reasoningEffort];
+  return fraction === undefined ? undefined : Math.max(1, Math.floor(maxBudget * fraction));
+}
 
 function isThinkingToggleType(value: string | undefined): value is "enabled" | "disabled" | "adaptive" {
   return value === "enabled" || value === "disabled" || value === "adaptive";
