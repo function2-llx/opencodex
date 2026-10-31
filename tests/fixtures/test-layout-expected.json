@@ -1081,6 +1081,7 @@
   "openai-chat-parallel-stream.test.ts": "adapters/openai", "openai-chat-path-override.test.ts": "adapters/openai",
   "openai-chat-tool-signature.test.ts": "adapters/openai",
   "openai-chat-signature-roundtrip.test.ts": "adapters/openai",
+  "openai-chat-signature-dispatch.test.ts": "adapters/openai",
   "openai-chat-qwen38-leading-system.test.ts": "adapters/openai",
   "openai-chat-reasoning-wire-policy.test.ts": "adapters/openai",
   "openai-chat-sanitization-review-regressions.test.ts": "adapters/openai",

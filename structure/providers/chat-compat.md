@@ -519,12 +519,12 @@ explicitly, and image-bearing legacy results remain unsupported rather than losi
 
 ## Gemini tool-call signatures on Chat
 
-`src/adapters/openai-chat/tool-call-metadata.ts` reads per-call `extra_content.google.thought_signature` in JSON/SSE; the bare `signature` alias requires a Gemini model id, including gateway namespaces.
-The shared boundary limits values to 64 KiB UTF-8. Identical repeats are retained once; conflicts terminate without logging signatures or dispatching pending calls. Retained bytes use the existing call reservation and release on completion, truncation or error.
+`src/adapters/openai-chat/tool-call-metadata.ts` reads per-call `extra_content.google.thought_signature` in JSON/SSE; a bare per-call `signature` field is read only for a Gemini model id, including gateway namespaces, and is never written back.
+The shared boundary limits values to 64 KiB UTF-8. Identical repeats are retained once; conflicts terminate with any usage already reported, without logging signatures or dispatching pending calls. Retained bytes use the existing call reservation and release on completion, truncation or error.
 Ordinary and negotiated early events carry metadata into Responses delivery and its existing durable store, including custom tools whose client-visible items cannot carry extensions.
 
 `src/adapters/openai-chat/messages.ts` restores stripped metadata after binding the thread, provider, endpoint, credential, adapter and model scope. Explicit metadata supports cold replay; a cache miss leaves calls unsigned.
-Only Gemini Chat destinations receive the extension; caller history stays unchanged. Coverage: `tests/adapters/openai/openai-chat-tool-signature.test.ts` and `tests/adapters/openai/openai-chat-signature-roundtrip.test.ts`.
+Only Gemini Chat destinations receive the extension; caller history stays unchanged. Coverage: `tests/adapters/openai/openai-chat-tool-signature.test.ts`, `tests/adapters/openai/openai-chat-signature-roundtrip.test.ts`, and the routed `handleResponses` continuation in `tests/adapters/openai/openai-chat-signature-dispatch.test.ts`.
 
 ## Chat streamed tool-call identity
 

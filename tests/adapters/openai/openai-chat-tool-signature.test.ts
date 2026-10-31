@@ -86,6 +86,15 @@ describe("Chat tool-call thought signatures", () => {
     expect(budget.snapshot().currentBytes).toBe(0);
   });
 
+  test("a conflict keeps usage the stream already reported", async () => {
+    const { events } = await stream([
+      chunk([{ index: 0, ...call("a", extra("first")) }]),
+      { choices: [], usage: { prompt_tokens: 7, completion_tokens: 3 } },
+      chunk([{ index: 0, ...extra("second") }], "tool_calls"),
+    ]);
+    expect(events.at(-1)).toEqual({ type: "error", message: "upstream tool call contained conflicting thought signatures", usage: { inputTokens: 7, outputTokens: 3 } });
+  });
+
   test("metadata consumes the pending-call budget and overflow releases it", async () => {
     const { events, budget } = await stream([chunk([{ index: 0, ...call("a", extra("界".repeat(4))) }])], { limit: 10 });
     expect(starts(events)).toHaveLength(0);

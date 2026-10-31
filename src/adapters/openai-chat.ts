@@ -518,7 +518,7 @@ export function createOpenAIChatAdapter(provider: OcxProviderConfig): ProviderAd
               // observed index binds: a repeated ID on a different index must not alias both.
               if (indexKey !== undefined && call.indexKey === undefined) call.indexKey = indexKey;
               if (!retainChatToolCallMetadata(call, rawToolCall, lastWireModelId, budget)) {
-                return yield* terminateWithError({ type: "error", message: "upstream tool call contained conflicting thought signatures" });
+                return yield* terminateWithError({ type: "error", message: "upstream tool call contained conflicting thought signatures", ...(pendingUsage !== undefined ? { usage: pendingUsage } : {}) });
               }
               if (completion === "completed") continue;
 

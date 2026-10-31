@@ -62,11 +62,12 @@ transport; it does not infer subscription attribution from the inbound protocol.
 - Converts internal messages to OpenAI roles; maps tools to `{type:"function", function:{…}}` and
   `tool_choice` (`auto`/`none`/`required` or a named function).
 - **Gemini tool continuations:** preserves per-call `extra_content.google.thought_signature`
-  (or the Gemini `signature` alias) through streaming and JSON responses. If the client drops
-  this metadata, the proxy restores the original signature from its scoped replay cache,
-  including for Codex custom tools. A missing uncached signature cannot be reconstructed;
-  start a new turn before the affected tool call. Google extensions are omitted when the
-  next Chat destination is a non-Gemini model.
+  through streaming and JSON responses. On a Gemini model id, a bare per-call `signature`
+  field is also accepted; a replayed signature is always sent as `extra_content`. If the client
+  drops this metadata, the proxy restores the original signature from a replay cache scoped to
+  the conversation, provider, credential and model, including for Codex custom tools. A missing
+  uncached signature cannot be reconstructed; start a new turn before the affected tool call.
+  Google extensions are omitted when the next Chat destination is a non-Gemini model.
 - **Tool-result images** ride in a follow-up user vision message (`image_url` parts) released once
   the tool round closes, since `role:"tool"` content is text-only; the `[image]` marker stays in the
   tool message as the anchor.
